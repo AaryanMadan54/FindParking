@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Parking Availability</title>
+  <link rel="icon" href="/favicon.ico" type="image/x-icon">
+  <link rel="icon" href="favicon.png" type="image/png">
+  <script src="https://maps.googleapis.com/maps/api/js?key=MAPS_API_KEY&callback=initMap" async defer></script>
+  <style>
+    body, html {
+      height: 100%;
+      margin: 0;
+      padding: 0;
+    }
+
+    h1 {
+      text-align: center;
+    }
+
+    #map {
+      height: 100%;
+      width: 100%;
+    }
+
+    p {
+      margin: 5px 0;
+      font-size: 18px;
+      color: #030386;
+    }
+
+    .navigate-button {
+      background-color: #007bff;
+      border: none;
+      color: rgb(21, 10, 223);
+      padding: 10px 20px;
+      text-align: center;
+      text-decoration: none;
+      display: inline-block;
+      font-size: 16px;
+      border-radius: 5px;
+      cursor: pointer;
+    }
+
+    .navigate-button:hover {
+        background-color: #13036e; /* Darker Green */
+    }
+
+
+
+  </style>
+</head>
+<body>
+  <h1>Parking Availability</h1>
+  <div id="map"></div>
+  <script>
+    let currentLocation;
+    let map;
+    let openInfowindow;
+    let directionsRenderer; // Declare the directions renderer variable
+
+    // Function to initialize the map
+    function initMap() {
+      // Initialize the map centered on Singapore
+      map = new google.maps.Map(document.getElementById('map'), {
+        center: { lat: 1.3521, lng: 103.8198 },
+        zoom: 12.2
+      });
+
+      // Create the directions renderer
+      directionsRenderer = new google.maps.DirectionsRenderer();
+      directionsRenderer.setMap(map);
+
+      // Fetch parking data
+      fetch('/data')
+        .then(response => response.json())
+        .then(data => {
+          data.value.forEach(parking => {
+            const coordinates = parking.Location.split(' ');
+            const lat = parseFloat(coordinates[0]);
+            const lng = parseFloat(coordinates[1]);
+            // Create marker for each parking location
+            const marker = new google.maps.Marker({
+              position: { lat, lng },
+              map: map,
+              title: parking.Area,
+              icon: {
+                url: 'https://maps.google.com/mapfiles/ms/icons/parkinglot.png',
+                scaledSize: new google.maps.Size(30, 30)
+              },
+              content: `<h3>${parking.Area}</h3>
+                        <p>Development: ${parking.Development}</p>
+                        <p>Available Parkings: ${parking.AvailableLots}</p>
+                        <p>Lot Type: ${parking.LotType === 'C' ? 'Cars' : (parking.LotType === 'Y' ? 'Motorcycles' : (parking.LotType === 'H' ? 'Heavy Vehicles' : 'Unknown'))}</p>
+                        <button class="navigate-button" onclick="navigateTo(${lat}, ${lng})">Navigate Here</button>
+`
+            });
+
+            marker.addListener('click', function() {
+              if (openInfowindow) {
+                openInfowindow.close();
+              }
+              const infowindow = new google.maps.InfoWindow({
+                content: this.content
+              });
+              openInfowindow = infowindow;
+              infowindow.open(map, this);
+            });
+          });
+        })
+        .catch(error => {
+          console.error('Error fetching data:', error.message);
+        });
+
+      // Get user's current location
+      if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(position => {
+          currentLocation = {
+            lat: position.coords.latitude,
+            lng: position.coords.longitude
+          };
+        });
+      }
+    }
+
+    // Function to navigate to the selected location
+    function navigateTo(lat, lng) {
+      if (!currentLocation) {
+        alert('Could not determine your current location.');
+        return;
+      }
+
+      // Remove existing directions from the map
+      directionsRenderer.setDirections({ routes: [] });
+
+      // Create directions request
+      const directionsService = new google.maps.DirectionsService();
+
+      const request = {
+        origin: currentLocation,
+        destination: { lat, lng },
+        travelMode: 'DRIVING'
+      };
+
+      // Calculate directions and display on the map
+      directionsService.route(request, (result, status) => {
+        if (status === 'OK') {
+          directionsRenderer.setDirections(result);
+        } else {
+          alert('Error calculating directions');
+        }
+      });
+    }
+  </script>
+</body>
+</html>
+
